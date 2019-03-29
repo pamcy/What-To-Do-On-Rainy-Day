@@ -9,6 +9,7 @@
   "author": "Pamcy",
   "license": "ISC",
   "dependencies": {
+    "axios": "^0.18.0",
     "puppeteer": "^1.13.0"
   },
   "devDependencies": {

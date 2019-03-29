@@ -1,5 +1,7 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
+const axios = require('axios');
+const CREDS = require('../../creds');
 
 async function getCurrentDate() {
   const now = new Date();
@@ -117,7 +119,9 @@ async function scrapeNiceday() {
           });
         });
 
-        storage.push(...result);
+        await sendDataToAirtable(...result);
+
+        // storage.push(...result);
 
         console.log(`page ${j} is done`);
       }
@@ -125,15 +129,30 @@ async function scrapeNiceday() {
 
     await browser.close();
 
-    fs.writeFile('src/data/niceday.json', JSON.stringify(storage), (error) => {
-      if (error) throw error;
-      console.log('JSON file saved');
-    });
+    // fs.writeFile('src/data/niceday.json', JSON.stringify(storage), (error) => {
+    //   if (error) throw error;
+    //   console.log('JSON file saved');
+    // });
   } catch (e) {
     console.error('🚫 Something when wrong when scraping: ', e);
     await browser.close();
   }
 }
+
+async function sendDataToAirtable(data) {
+  const airtable_api = 'https://api.airtable.com/v0/appQuTk2v5mu4Awgc/Table%201?api_key=';
+
+  axios.post(`${airtable_api}${CREDS.airtableKey}`, {
+    fields: data
+  })
+  .then(function (response) {
+    console.log(response);
+  })
+  .catch(function (error) {
+    console.error(error);
+  });
+}
+
 
 (async () => {
   try {
