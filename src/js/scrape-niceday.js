@@ -103,15 +103,17 @@ async function scrapeNiceday() {
         await autoScroll(page);
 
         result = await page.evaluate(() => {
-          const items = [...document.querySelectorAll('.CardGellory__StyledProductCard-rj4q7h-0.fGdaHg.ProductCard__A-sc-1vcdm7s-0.cXwraG')];
-          const category = document.querySelector('.search__CategoryBannerTitle-oafeo4-3.bFWIL').innerText.trim();
+          const items = [...document.querySelectorAll('[class^=CardGellory__StyledProductCard]')];
+
+          const category = document.querySelector('[class^=search__CategoryBannerTitle]').innerText.trim();
 
           return items.map((item) => {
-            const title = item.querySelector('.ProductCard__Title-sc-1vcdm7s-4.beFbhb').innerText.trim();
-            const description = item.querySelector('.ProductCard__Description-sc-1vcdm7s-6.kCzSOS').innerText.trim();
+            const title = item.querySelector('[class^=ProductCard__Title]').innerText.trim();
+            const description = item.querySelector('[class^=ProductCard__Description]').innerText.trim();
+
             const link = item.getAttribute('href');
             const img = item.querySelector('img').getAttribute('src');
-            const price = item.querySelector('.ProductCard__Price-sc-1vcdm7s-3.jmhEVM').innerText.trim();
+            const price = item.querySelector('[class^=ProductCard__Price]').innerText.trim();
 
             return {
               category, title, description, link, img, price,
