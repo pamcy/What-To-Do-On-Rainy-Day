@@ -126,14 +126,13 @@ async function scrapeNiceday() {
       }
     }
 
-    await browser.close();
-
     fs.writeFile('src/data/niceday.json', JSON.stringify(storage), (error) => {
       if (error) throw error;
       console.log('JSON file saved');
     });
   } catch (e) {
     console.error('🚫 Something when wrong when scraping: ', e);
+  } finally {
     await browser.close();
   }
 }
