@@ -36,15 +36,12 @@ async function generateURLs(price = 3000) {
 }
 
 async function getTotalPages(page) {
-  const items_per_page = 20;
-
-  const result = await page.evaluate((items) => {
-    const total_text = document.querySelector('.oyukgo-0-Flexbox__FlexCenterStart-bBQGLq.fzYyhz > span').innerText;
-    const total_number = total_text.replace(/\D/g, ''); // Any non digit is replaced by an empty string
-    const total_pages = Math.ceil(total_number / items);
+  const result = await page.evaluate(() => {
+    const pagination_bar = document.querySelector('[class^=PaginationBar__Pagination]');
+    const total_pages = pagination_bar.childNodes.length;
 
     return total_pages;
-  }, items_per_page);
+  });
 
   console.log(`Total ${result} pages`);
 
@@ -121,9 +118,9 @@ async function scrapeNiceday() {
           });
         });
 
-        await sendDataToAirtable(...result);
+        // await sendDataToAirtable(...result);
 
-        // storage.push(...result);
+        storage.push(...result);
 
         console.log(`page ${j} is done`);
       }
@@ -131,29 +128,29 @@ async function scrapeNiceday() {
 
     await browser.close();
 
-    // fs.writeFile('src/data/niceday.json', JSON.stringify(storage), (error) => {
-    //   if (error) throw error;
-    //   console.log('JSON file saved');
-    // });
+    fs.writeFile('src/data/niceday.json', JSON.stringify(storage), (error) => {
+      if (error) throw error;
+      console.log('JSON file saved');
+    });
   } catch (e) {
     console.error('🚫 Something when wrong when scraping: ', e);
     await browser.close();
   }
 }
 
-async function sendDataToAirtable(data) {
-  const airtable_api = 'https://api.airtable.com/v0/appQuTk2v5mu4Awgc/Table%201?api_key=';
+// async function sendDataToAirtable(data) {
+//   const airtable_api = 'https://api.airtable.com/v0/appQuTk2v5mu4Awgc/Table%201?api_key=';
 
-  axios.post(`${airtable_api}${CREDS.airtableKey}`, {
-    fields: data
-  })
-  .then(function (response) {
-    console.log(response);
-  })
-  .catch(function (error) {
-    console.error(error);
-  });
-}
+//   axios.post(`${airtable_api}${CREDS.airtableKey}`, {
+//     fields: data
+//   })
+//   .then(function (response) {
+//     console.log(response);
+//   })
+//   .catch(function (error) {
+//     console.error(error);
+//   });
+// }
 
 
 (async () => {
