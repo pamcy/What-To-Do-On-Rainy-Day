@@ -98,9 +98,7 @@ async function crawlPageContent(page, url, pageNum) {
   await page.goto(`${url}&page=${pageNum}`);
   await autoScroll(page);
 
-  let result;
-
-  result = await page.evaluate(() => {
+  const result = await page.evaluate(() => {
     const items = [...document.querySelectorAll('[class^=CardGellory__StyledProductCard]')];
 
     const category = document.querySelector('[class^=search__CategoryBannerTitle]').innerText.trim();
@@ -131,9 +129,9 @@ async function saveDataToAirtable(data) {
   const airtable_api = 'https://api.airtable.com/v0/appQuTk2v5mu4Awgc/Table%201?api_key=';
 
   axios.post(`${airtable_api}${CREDS.airtableKey}`, {
-    fields: data
+    fields: data,
   })
-  .catch((error) => console.error(error));
+    .catch(error => console.error(error));
 }
 
 /**
@@ -141,7 +139,7 @@ async function saveDataToAirtable(data) {
  * @param {Array} items 所有爬文資料
  */
 async function sendDataToAirtable(items) {
-  items.forEach((item) => saveDataToAirtable(item));
+  items.forEach(item => saveDataToAirtable(item));
 }
 
 /**
