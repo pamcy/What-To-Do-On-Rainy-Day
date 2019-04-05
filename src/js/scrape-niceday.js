@@ -2,6 +2,10 @@ const puppeteer = require('puppeteer');
 const axios = require('axios');
 const CREDS = require('../../creds');
 
+/**
+ * 取得日期供網址參數用
+ * @returns {Object} 今天和 30 天後的日期
+ */
 async function getCurrentDate() {
   const now = new Date();
   const today = now.toISOString().split('T')[0];
@@ -10,6 +14,11 @@ async function getCurrentDate() {
   return { today, next30Days };
 }
 
+/**
+ * 建立參數生成爬文網址
+ * @param {Number} [price=3000] 預設價格 3000 元以內的體驗
+ * @returns {Array} 所有體驗類別的爬文網址
+ */
 async function generateURLs(price = 3000) {
   const date = await getCurrentDate();
 
@@ -34,6 +43,11 @@ async function generateURLs(price = 3000) {
   return urls;
 }
 
+/**
+ * 取得體驗類別的總共頁數
+ * @param {Object} page Puppeteer Page instance
+ * @return {Number} 總共頁數
+ */
 async function getTotalPages(page) {
   const result = await page.evaluate(() => {
     const pagination_bar = document.querySelector('[class^=PaginationBar__Pagination]');
@@ -47,9 +61,10 @@ async function getTotalPages(page) {
   return result;
 }
 
-/*
+/**
  * 解決 lazyloading 部份內容還未顯示問題，讓網頁自己滾動
- * https://stackoverflow.com/questions/51529332/puppeteer-scroll-down-until-you-cant-anymore
+ * @link https://stackoverflow.com/questions/51529332/puppeteer-scroll-down-until-you-cant-anymore
+ * @param {Object} page Puppeteer Page instance
  */
 async function autoScroll(page) {
   await page.evaluate(async () => {
@@ -72,6 +87,13 @@ async function autoScroll(page) {
   });
 }
 
+/**
+ * 爬內容
+ * @param {Object} page Puppeteer Page instance
+ * @param {Array} url 體驗類別的網址
+ * @param {Number} pageNum 第幾頁
+ * @returns {Array} 爬回來的內容包成 Object
+ */
 async function crawlPageContent(page, url, pageNum) {
   await page.goto(`${url}&page=${pageNum}`);
   await autoScroll(page);
@@ -101,6 +123,10 @@ async function crawlPageContent(page, url, pageNum) {
   return result;
 }
 
+/**
+ * API 將資料寫入 Airtable DB
+ * @param {Array} data 所有爬文資料
+ */
 async function saveDataToAirtable(data) {
   const airtable_api = 'https://api.airtable.com/v0/appQuTk2v5mu4Awgc/Table%201?api_key=';
 
@@ -110,10 +136,17 @@ async function saveDataToAirtable(data) {
   .catch((error) => console.error(error));
 }
 
+/**
+ * 將所有爬文資料傳入 function saveDataToAirtable
+ * @param {Array} items 所有爬文資料
+ */
 async function sendDataToAirtable(items) {
   items.forEach((item) => saveDataToAirtable(item));
 }
 
+/**
+ * 爬蟲 Controller
+ */
 async function createNicedaySpider() {
   const browser = await puppeteer.launch();
   const storage = [];
