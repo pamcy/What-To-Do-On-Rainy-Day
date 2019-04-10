@@ -1,6 +1,6 @@
 const puppeteer = require('puppeteer');
 const axios = require('axios');
-const CREDS = require('../../creds');
+require('dotenv').config()
 
 /**
  * 取得日期供網址參數用
@@ -128,7 +128,7 @@ async function crawlPageContent(page, url, pageNum) {
 async function saveDataToAirtable(data) {
   const airtable_api = 'https://api.airtable.com/v0/appQuTk2v5mu4Awgc/Table%201?api_key=';
 
-  axios.post(`${airtable_api}${CREDS.airtableKey}`, {
+  axios.post(`${airtable_api}${process.env.AIRTABLE_KEY}`, {
     fields: data,
   })
     .catch(error => console.error(error));
