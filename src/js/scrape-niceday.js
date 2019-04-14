@@ -1,6 +1,6 @@
 const puppeteer = require('puppeteer');
 const axios = require('axios');
-require('dotenv').config()
+require('dotenv').config();
 
 /**
  * 取得日期供網址參數用
