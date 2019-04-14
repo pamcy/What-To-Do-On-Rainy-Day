@@ -128,7 +128,7 @@ async function crawlPageContent(page, url, pageNum) {
 async function saveDataToAirtable(data) {
   const airtable_api_url = 'https://api.airtable.com/v0/appQuTk2v5mu4Awgc/Table%201?api_key=';
 
-  axios.post(`${airtable_api_url}${CREDS.airtableKey}`, {
+  axios.post(`${airtable_api_url}${process.env.AIRTABLE_KEY}`, {
     fields: data,
   })
     .catch(error => console.error(error));
