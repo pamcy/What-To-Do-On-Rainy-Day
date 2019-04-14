@@ -16,7 +16,7 @@ async function getCurrentDate() {
 
 /**
  * 建立參數生成爬文網址
- * @param {Number} [price=3000] 預設價格 3000 元以內的體驗
+ * @param {Number} [price = 3000] 預設價格 3000 元以內的體驗
  * @returns {Array} 所有體驗類別的爬文網址
  */
 async function generateURLs(price = 3000) {
@@ -51,7 +51,7 @@ async function generateURLs(price = 3000) {
 async function getTotalPages(page) {
   const result = await page.evaluate(() => {
     const pagination_bar = document.querySelector('[class^=PaginationBar__Pagination]');
-    const total_pages = pagination_bar.childNodes.length;
+    const total_pages = pagination_bar.childNodes[pagination_bar.childNodes.length - 1].textContent;
 
     return total_pages;
   });
@@ -126,9 +126,9 @@ async function crawlPageContent(page, url, pageNum) {
  * @param {Array} data 所有爬文資料
  */
 async function saveDataToAirtable(data) {
-  const airtable_api = 'https://api.airtable.com/v0/appQuTk2v5mu4Awgc/Table%201?api_key=';
+  const airtable_api_url = 'https://api.airtable.com/v0/appQuTk2v5mu4Awgc/Table%201?api_key=';
 
-  axios.post(`${airtable_api}${process.env.AIRTABLE_KEY}`, {
+  axios.post(`${airtable_api_url}${CREDS.airtableKey}`, {
     fields: data,
   })
     .catch(error => console.error(error));
@@ -166,8 +166,8 @@ async function createNicedaySpider() {
 
       const total_pages = await getTotalPages(page);
 
-      for (let j = 1; j <= total_pages; j++) {
-        const content = await crawlPageContent(page, search_urls[i], j);
+      for (let pageNum = 1; pageNum <= total_pages; pageNum++) {
+        const content = await crawlPageContent(page, search_urls[i], pageNum);
         storage.push(...content);
       }
     }
