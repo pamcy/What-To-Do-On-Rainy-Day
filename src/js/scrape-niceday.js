@@ -1,8 +1,11 @@
 const puppeteer = require('puppeteer');
-const fs = require('fs');
 const axios = require('axios');
 const CREDS = require('../../creds');
 
+/**
+ * 取得日期供網址參數用
+ * @returns {Object} 今天和 30 天後的日期
+ */
 async function getCurrentDate() {
   const now = new Date();
   const today = now.toISOString().split('T')[0];
@@ -11,6 +14,11 @@ async function getCurrentDate() {
   return { today, next30Days };
 }
 
+/**
+ * 建立參數生成爬文網址
+ * @param {Number} [price = 3000] 預設價格 3000 元以內的體驗
+ * @returns {Array} 所有體驗類別的爬文網址
+ */
 async function generateURLs(price = 3000) {
   const date = await getCurrentDate();
 
@@ -35,25 +43,28 @@ async function generateURLs(price = 3000) {
   return urls;
 }
 
+/**
+ * 取得體驗類別的總共頁數
+ * @param {Object} page Puppeteer Page instance
+ * @return {Number} 總共頁數
+ */
 async function getTotalPages(page) {
-  const items_per_page = 20;
-
-  const result = await page.evaluate((items) => {
-    const total_text = document.querySelector('.oyukgo-0-Flexbox__FlexCenterStart-bBQGLq.fzYyhz > span').innerText;
-    const total_number = total_text.replace(/\D/g, ''); // Any non digit is replaced by an empty string
-    const total_pages = Math.ceil(total_number / items);
+  const result = await page.evaluate(() => {
+    const pagination_bar = document.querySelector('[class^=PaginationBar__Pagination]');
+    const total_pages = pagination_bar.childNodes[pagination_bar.childNodes.length - 1].textContent;
 
     return total_pages;
-  }, items_per_page);
+  });
 
   console.log(`Total ${result} pages`);
 
   return result;
 }
 
-/*
+/**
  * 解決 lazyloading 部份內容還未顯示問題，讓網頁自己滾動
- * https://stackoverflow.com/questions/51529332/puppeteer-scroll-down-until-you-cant-anymore
+ * @link https://stackoverflow.com/questions/51529332/puppeteer-scroll-down-until-you-cant-anymore
+ * @param {Object} page Puppeteer Page instance
  */
 async function autoScroll(page) {
   await page.evaluate(async () => {
@@ -76,10 +87,67 @@ async function autoScroll(page) {
   });
 }
 
-async function scrapeNiceday() {
+/**
+ * 爬內容
+ * @param {Object} page Puppeteer Page instance
+ * @param {Array} url 體驗類別的網址
+ * @param {Number} pageNum 第幾頁
+ * @returns {Array} 爬回來的內容包成 Object
+ */
+async function crawlPageContent(page, url, pageNum) {
+  await page.goto(`${url}&page=${pageNum}`);
+  await autoScroll(page);
+
+  const result = await page.evaluate(() => {
+    const items = [...document.querySelectorAll('[class^=CardGellory__StyledProductCard]')];
+
+    const category = document.querySelector('[class^=search__CategoryBannerTitle]').innerText.trim();
+
+    return items.map((item) => {
+      const title = item.querySelector('[class^=ProductCard__Title]').innerText.trim();
+      const description = item.querySelector('[class^=ProductCard__Description]').innerText.trim();
+      const link = item.getAttribute('href');
+      const img = item.querySelector('img').getAttribute('src');
+      const price = item.querySelector('[class^=ProductCard__Price]').innerText.trim();
+
+      return {
+        category, title, description, link, img, price,
+      };
+    });
+  });
+
+  console.log(`page ${pageNum} is done`);
+
+  return result;
+}
+
+/**
+ * API 將資料寫入 Airtable DB
+ * @param {Array} data 所有爬文資料
+ */
+async function saveDataToAirtable(data) {
+  const airtable_api_url = 'https://api.airtable.com/v0/appQuTk2v5mu4Awgc/Table%201?api_key=';
+
+  axios.post(`${airtable_api_url}${CREDS.airtableKey}`, {
+    fields: data,
+  })
+    .catch(error => console.error(error));
+}
+
+/**
+ * 將所有爬文資料傳入 function saveDataToAirtable
+ * @param {Array} items 所有爬文資料
+ */
+async function sendDataToAirtable(items) {
+  items.forEach(item => saveDataToAirtable(item));
+}
+
+/**
+ * 爬蟲 Controller
+ */
+async function createNicedaySpider() {
   const browser = await puppeteer.launch();
   const storage = [];
-  let result;
 
   try {
     const page = await browser.newPage();
@@ -98,65 +166,24 @@ async function scrapeNiceday() {
 
       const total_pages = await getTotalPages(page);
 
-      for (let j = 1; j <= total_pages; j++) {
-        await page.goto(`${search_urls[i]}&page=${j}`);
-        await autoScroll(page);
-
-        result = await page.evaluate(() => {
-          const items = [...document.querySelectorAll('.CardGellory__StyledProductCard-rj4q7h-0.fGdaHg.ProductCard__A-sc-1vcdm7s-0.cXwraG')];
-          const category = document.querySelector('.search__CategoryBannerTitle-oafeo4-3.bFWIL').innerText.trim();
-
-          return items.map((item) => {
-            const title = item.querySelector('.ProductCard__Title-sc-1vcdm7s-4.beFbhb').innerText.trim();
-            const description = item.querySelector('.ProductCard__Description-sc-1vcdm7s-6.kCzSOS').innerText.trim();
-            const link = item.getAttribute('href');
-            const img = item.querySelector('img').getAttribute('src');
-            const price = item.querySelector('.ProductCard__Price-sc-1vcdm7s-3.jmhEVM').innerText.trim();
-
-            return {
-              category, title, description, link, img, price,
-            };
-          });
-        });
-
-        await sendDataToAirtable(...result);
-
-        // storage.push(...result);
-
-        console.log(`page ${j} is done`);
+      for (let pageNum = 1; pageNum <= total_pages; pageNum++) {
+        const content = await crawlPageContent(page, search_urls[i], pageNum);
+        storage.push(...content);
       }
     }
-
-    await browser.close();
-
-    // fs.writeFile('src/data/niceday.json', JSON.stringify(storage), (error) => {
-    //   if (error) throw error;
-    //   console.log('JSON file saved');
-    // });
   } catch (e) {
     console.error('🚫 Something when wrong when scraping: ', e);
+  } finally {
     await browser.close();
+    await sendDataToAirtable(storage);
+
+    console.log(`There are ${storage.length} items uploaded into Airtable.`);
   }
 }
 
-async function sendDataToAirtable(data) {
-  const airtable_api = 'https://api.airtable.com/v0/appQuTk2v5mu4Awgc/Table%201?api_key=';
-
-  axios.post(`${airtable_api}${CREDS.airtableKey}`, {
-    fields: data
-  })
-  .then(function (response) {
-    console.log(response);
-  })
-  .catch(function (error) {
-    console.error(error);
-  });
-}
-
-
 (async () => {
   try {
-    await scrapeNiceday();
+    await createNicedaySpider();
   } catch (e) {
     console.error('🚫  Error : ', e);
   }
