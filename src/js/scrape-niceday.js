@@ -1,4 +1,5 @@
 const puppeteer = require('puppeteer');
+const https = require('https');
 const axios = require('axios');
 require('dotenv').config();
 
@@ -82,7 +83,7 @@ async function autoScroll(page) {
           clearInterval(timer);
           resolve(); // 將 Promise 對象設置為 resolve()
         }
-      }, 100);
+      }, 200);
     });
   });
 }
@@ -104,14 +105,18 @@ async function crawlPageContent(page, url, pageNum) {
     const category = document.querySelector('[class^=search__CategoryBannerTitle]').innerText.trim();
 
     return items.map((item) => {
+      const source = 'niceday';
+      const prefix_url = '//play.niceday.tw';
       const title = item.querySelector('[class^=ProductCard__Title]').innerText.trim();
       const description = item.querySelector('[class^=ProductCard__Description]').innerText.trim();
       const link = item.getAttribute('href');
-      const img = item.querySelector('img').getAttribute('src');
+      const img = item.querySelector('img')
+        ? item.querySelector('img').getAttribute('src')
+        : '';
       const price = item.querySelector('[class^=ProductCard__Price]').innerText.trim();
 
       return {
-        category, title, description, link, img, price,
+        source, prefix_url, category, title, description, link, img, price,
       };
     });
   });
@@ -122,31 +127,63 @@ async function crawlPageContent(page, url, pageNum) {
 }
 
 /**
- * API 將資料寫入 Airtable DB
- * @param {Array} data 所有爬文資料
+ * 透過 graphql api 上傳
+ * @param {Array} chunk
  */
-async function saveDataToAirtable(data) {
-  const airtable_api_url = 'https://api.airtable.com/v0/appQuTk2v5mu4Awgc/Table%201?api_key=';
+async function upload(chunk) {
+  const agent = new https.Agent({
+    rejectUnauthorized: false,
+  });
 
-  axios.post(`${airtable_api_url}${process.env.AIRTABLE_KEY}`, {
-    fields: data,
-  })
-    .catch(error => console.error(error));
+  // JSON.stringify without quotes on properties
+  // @link https://stackoverflow.com/questions/11233498/json-stringify-without-quotes-on-properties
+  const query_string = JSON.stringify(chunk)
+    .replace(/\"([^(\")"]+)\":/g, "$1:");
+  console.log(`
+        mutation {
+          insertProducts(
+            data: ${query_string}
+          ) {
+            affected_rows
+          }
+        }
+      `);
+  axios({
+    httpsAgent: agent,
+    url: 'https://local.rainy-to-do-app-api/graphql',
+    method: 'post',
+    data: {
+      query: `
+        mutation {
+          insertProducts(
+            data: ${query_string}
+          ) {
+            affected_rows
+          }
+        }
+      `,
+    },
+  }).then((result) => {
+    console.log(result.data);
+  }).catch(error => console.error(error));
 }
 
 /**
- * 將所有爬文資料傳入 function saveDataToAirtable
+ * 將大筆資料切分 chunk 後上傳
  * @param {Array} items 所有爬文資料
  */
-async function sendDataToAirtable(items) {
-  items.forEach(item => saveDataToAirtable(item));
+async function bulkUpload(items) {
+  while (items.length > 0) {
+    const chunk = items.splice(0, 50); // 每次上傳 50 筆資料 (約 30k 內)
+    upload(chunk);
+  }
 }
 
 /**
  * 爬蟲 Controller
  */
 async function createNicedaySpider() {
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const storage = [];
 
   try {
@@ -175,7 +212,9 @@ async function createNicedaySpider() {
     console.error('🚫 Something when wrong when scraping: ', e);
   } finally {
     await browser.close();
-    await sendDataToAirtable(storage);
+
+    console.log(`Ready to upload ${storage.length} items`);
+    await bulkUpload(storage);
 
     console.log(`There are ${storage.length} items uploaded into Airtable.`);
   }
