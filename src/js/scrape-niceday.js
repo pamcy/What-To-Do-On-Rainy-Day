@@ -1,7 +1,5 @@
 const puppeteer = require('puppeteer');
-const https = require('https');
-const axios = require('axios');
-require('dotenv').config();
+const { bulkUpload } = require('./bulkUpload.js');
 
 /**
  * 取得日期供網址參數用
@@ -83,7 +81,7 @@ async function autoScroll(page) {
           clearInterval(timer);
           resolve(); // 將 Promise 對象設置為 resolve()
         }
-      }, 200);
+      }, 250);
     });
   });
 }
@@ -124,59 +122,6 @@ async function crawlPageContent(page, url, pageNum) {
   console.log(`page ${pageNum} is done`);
 
   return result;
-}
-
-/**
- * 透過 graphql api 上傳
- * @param {Array} chunk
- */
-async function upload(chunk) {
-  const agent = new https.Agent({
-    rejectUnauthorized: false,
-  });
-
-  // JSON.stringify without quotes on properties
-  // @link https://stackoverflow.com/questions/11233498/json-stringify-without-quotes-on-properties
-  const query_string = JSON.stringify(chunk)
-    .replace(/\"([^(\")"]+)\":/g, "$1:");
-  console.log(`
-        mutation {
-          insertProducts(
-            data: ${query_string}
-          ) {
-            affected_rows
-          }
-        }
-      `);
-  axios({
-    httpsAgent: agent,
-    url: 'https://local.rainy-to-do-app-api/graphql',
-    method: 'post',
-    data: {
-      query: `
-        mutation {
-          insertProducts(
-            data: ${query_string}
-          ) {
-            affected_rows
-          }
-        }
-      `,
-    },
-  }).then((result) => {
-    console.log(result.data);
-  }).catch(error => console.error(error));
-}
-
-/**
- * 將大筆資料切分 chunk 後上傳
- * @param {Array} items 所有爬文資料
- */
-async function bulkUpload(items) {
-  while (items.length > 0) {
-    const chunk = items.splice(0, 50); // 每次上傳 50 筆資料 (約 30k 內)
-    upload(chunk);
-  }
 }
 
 /**
