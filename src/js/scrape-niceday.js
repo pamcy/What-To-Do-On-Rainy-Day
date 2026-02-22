@@ -1,6 +1,5 @@
 const puppeteer = require('puppeteer');
-const axios = require('axios');
-require('dotenv').config();
+const { bulkUpload } = require('./bulkUpload.js');
 
 /**
  * 取得日期供網址參數用
@@ -82,7 +81,7 @@ async function autoScroll(page) {
           clearInterval(timer);
           resolve(); // 將 Promise 對象設置為 resolve()
         }
-      }, 100);
+      }, 250);
     });
   });
 }
@@ -104,14 +103,18 @@ async function crawlPageContent(page, url, pageNum) {
     const category = document.querySelector('[class^=search__CategoryBannerTitle]').innerText.trim();
 
     return items.map((item) => {
+      const source = 'niceday';
+      const prefix_url = '//play.niceday.tw';
       const title = item.querySelector('[class^=ProductCard__Title]').innerText.trim();
       const description = item.querySelector('[class^=ProductCard__Description]').innerText.trim();
       const link = item.getAttribute('href');
-      const img = item.querySelector('img').getAttribute('src');
+      const img = item.querySelector('img')
+        ? item.querySelector('img').getAttribute('src')
+        : '';
       const price = item.querySelector('[class^=ProductCard__Price]').innerText.trim();
 
       return {
-        category, title, description, link, img, price,
+        source, prefix_url, category, title, description, link, img, price,
       };
     });
   });
@@ -122,31 +125,10 @@ async function crawlPageContent(page, url, pageNum) {
 }
 
 /**
- * API 將資料寫入 Airtable DB
- * @param {Array} data 所有爬文資料
- */
-async function saveDataToAirtable(data) {
-  const airtable_api_url = 'https://api.airtable.com/v0/appQuTk2v5mu4Awgc/Table%201?api_key=';
-
-  axios.post(`${airtable_api_url}${process.env.AIRTABLE_KEY}`, {
-    fields: data,
-  })
-    .catch(error => console.error(error));
-}
-
-/**
- * 將所有爬文資料傳入 function saveDataToAirtable
- * @param {Array} items 所有爬文資料
- */
-async function sendDataToAirtable(items) {
-  items.forEach(item => saveDataToAirtable(item));
-}
-
-/**
  * 爬蟲 Controller
  */
 async function createNicedaySpider() {
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const storage = [];
 
   try {
@@ -175,7 +157,9 @@ async function createNicedaySpider() {
     console.error('🚫 Something when wrong when scraping: ', e);
   } finally {
     await browser.close();
-    await sendDataToAirtable(storage);
+
+    console.log(`Ready to upload ${storage.length} items`);
+    await bulkUpload(storage);
 
     console.log(`There are ${storage.length} items uploaded into Airtable.`);
   }
